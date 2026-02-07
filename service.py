@@ -40,9 +40,70 @@ def getStockData(symbol: str):
             "implied_upside_pct": safe(upside),
         }
 
+        dataAvaialble = yf.download(symbol.upper(), period="max", interval="1d", auto_adjust=False, progress=False)
+
+        prices = dataAvaialble["Adj Close"].dropna()
+
+        if len(prices) < 10:
+            raise Exception("Not enough historical data")
+        
+        todayPrice = prices.iloc[-1]
+        todayDate = prices.index[-1]
+
+        def priceNowOrBefore(data):
+            return prices.loc[:data].iloc[-1]
+        
+        def percentage(oldPrice):
+            return round(((todayPrice - oldPrice) / oldPrice) * 100, 2)
+        
+        oneDayPrice = prices.iloc[-2]
+        fiveDayPrice = prices.iloc[-6]
+
+        oneMonthPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(months=1)
+        )
+
+        sixMonthPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(months=6)
+        )
+
+        ytdPrice = priceNowOrBefore(
+            pd.Timestamp(year=todayDate.year, month=1, day=1)
+        )
+
+        oneYearPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(years=1)
+        )
+
+        threeYearPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(years=3)
+        )
+
+        fiveYearPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(years=5)
+        )
+
+        tenYearPrice = priceNowOrBefore(
+            todayDate - pd.DateOffset(years=10)
+        )
+
+        price_changes = {
+            "one_Day": percentage(oneDayPrice),
+            "five_Day": percentage(fiveDayPrice),
+            "one_Month": percentage(oneMonthPrice),
+            "six_Month": percentage(sixMonthPrice),
+            "year_To_Date": percentage(ytdPrice),
+            "one_Year": percentage(oneYearPrice),
+            "three_Year": percentage(threeYearPrice),
+            "five_Year": percentage(fiveYearPrice),
+            "ten_Year": percentage(tenYearPrice)
+        }
+        
+
         return {
-            "metrics": metrics,
-            "target": targets
+            "Metrics": metrics,
+            "Target": targets,
+            "priceChangePercentage": price_changes
         }
 
     except Exception as ex:
