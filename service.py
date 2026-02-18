@@ -1,6 +1,6 @@
 import yfinance as yf
+import pandas as pd
 from fastapi import HTTPException
-
 
 def getStockData(symbol: str):
     
@@ -35,11 +35,11 @@ def getStockData(symbol: str):
             "target_low": safe(info.get("targetLowPrice")),
             "target_high": safe(info.get("targetHighPrice")),
             "analyst_count": safe(info.get("numberOfAnalystOpinions")),
-            "recommendation_mean": safe(info.get("recommendationMean")),   # 1=Strong Buy ... 5=Sell
-            "recommendation_key": safe(info.get("recommendationKey")),     # buy / hold / sell
+            "recommendation_mean": safe(info.get("recommendationMean")),
+            "recommendation_key": safe(info.get("recommendationKey")),
             "implied_upside_pct": safe(upside),
         }
-
+        
         dataAvaialble = yf.download(symbol.upper(), period="max", interval="1d", auto_adjust=False, progress=False)
 
         prices = dataAvaialble["Adj Close"].dropna()
@@ -58,17 +58,11 @@ def getStockData(symbol: str):
         
         oneDayPrice = prices.iloc[-2]
         fiveDayPrice = prices.iloc[-6]
-
-        oneMonthPrice = priceNowOrBefore(
-            todayDate - pd.DateOffset(months=1)
-        )
-
-        sixMonthPrice = priceNowOrBefore(
-            todayDate - pd.DateOffset(months=6)
-        )
+        oneMonthPrice = prices.iloc[-22]
+        sixMonthPrice1 = prices.iloc[-127]
 
         ytdPrice = priceNowOrBefore(
-            pd.Timestamp(year=todayDate.year, month=1, day=1)
+            pd.Timestamp(year=todayDate.year, month=1, day=2)
         )
 
         oneYearPrice = priceNowOrBefore(
@@ -88,15 +82,15 @@ def getStockData(symbol: str):
         )
 
         price_changes = {
-            "one_Day": percentage(oneDayPrice),
-            "five_Day": percentage(fiveDayPrice),
-            "one_Month": percentage(oneMonthPrice),
-            "six_Month": percentage(sixMonthPrice),
-            "year_To_Date": percentage(ytdPrice),
-            "one_Year": percentage(oneYearPrice),
-            "three_Year": percentage(threeYearPrice),
-            "five_Year": percentage(fiveYearPrice),
-            "ten_Year": percentage(tenYearPrice)
+            "one_Day": safe(percentage(oneDayPrice)),
+            "five_Day": safe(percentage(fiveDayPrice)),
+            "one_Month": safe(percentage(oneMonthPrice)),
+            "six_Month": safe(percentage(sixMonthPrice1)),
+            "year_To_Date": safe(percentage(ytdPrice)),
+            "one_Year": safe(percentage(oneYearPrice)),
+            "three_Year": safe(percentage(threeYearPrice)),
+            "five_Year": safe(percentage(fiveYearPrice)),
+            "ten_Year": safe(percentage(tenYearPrice))
         }
         
 
@@ -108,7 +102,41 @@ def getStockData(symbol: str):
 
     except Exception as ex:
         raise HTTPException(status_code=400, detail=str(ex))
-    
+
+def getDividendPayout(symbol):
+    try:
+        ticker = yf.Ticker(symbol.upper())
+        info = ticker.info
+
+        eps = info.get("trailingEps")
+        dividendPershare = info.get("dividendRate")
+        freeCashFlow = info.get("freeCashflow")
+        sharesOutstanding = info.get("sharesOutstanding")
+
+        eps_Payout = None
+        fcf_Payout = None
+
+
+        if eps and dividendPershare:
+            eps_Payout = dividendPershare / eps
+
+        if freeCashFlow and sharesOutstanding and dividendPershare:
+            total_Dividend = dividendPershare * sharesOutstanding
+            fcf_Payout = total_Dividend / freeCashFlow
+
+
+        dividend = {
+            "Symbol": symbol.upper(),
+            "payout_ratio_eps": safe(eps_Payout),
+            "payout_ratio_fcf": safe(fcf_Payout),
+        }
+
+        return {
+            "Dividend_payout": dividend
+        }
+
+    except Exception as ex:
+        raise HTTPException(status_code=400, detail=str(ex))
 
 def safe(value):
     if value is None:
